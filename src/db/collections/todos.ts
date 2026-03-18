@@ -7,6 +7,23 @@ const shapeUrl =
 		? `${window.location.origin}/api/todos`
 		: `http://localhost:${process.env.VITE_PORT ?? 8080}/api/todos`;
 
+async function mutate(
+	method: string,
+	body: unknown,
+): Promise<{ txid: number }> {
+	const response = await fetch("/api/mutations/todos", {
+		method,
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(body),
+	});
+	if (!response.ok) {
+		throw new Error(
+			`Mutation failed: ${response.status} ${response.statusText}`,
+		);
+	}
+	return response.json();
+}
+
 export const todosCollection = createCollection<Todo>(
 	electricCollectionOptions<Todo>({
 		id: "todos",
@@ -17,31 +34,13 @@ export const todosCollection = createCollection<Todo>(
 		schema: todoSelectSchema,
 		primaryKey: ["id"],
 		onInsert: async ({ transaction }) => {
-			const mutation = transaction.mutations[0];
-			const response = await fetch("/api/mutations/todos", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(mutation.modified),
-			});
-			return response.json();
+			return mutate("POST", transaction.mutations[0].modified);
 		},
 		onUpdate: async ({ transaction }) => {
-			const mutation = transaction.mutations[0];
-			const response = await fetch("/api/mutations/todos", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(mutation.modified),
-			});
-			return response.json();
+			return mutate("PATCH", transaction.mutations[0].modified);
 		},
 		onDelete: async ({ transaction }) => {
-			const mutation = transaction.mutations[0];
-			const response = await fetch("/api/mutations/todos", {
-				method: "DELETE",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ id: mutation.key }),
-			});
-			return response.json();
+			return mutate("DELETE", { id: transaction.mutations[0].key });
 		},
 	}),
 );
